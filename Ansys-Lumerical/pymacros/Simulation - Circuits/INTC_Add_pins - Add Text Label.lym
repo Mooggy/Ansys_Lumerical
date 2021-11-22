@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<klayout-macro>
+ <description>Add Optical Ports (Text Labels)</description>
+ <version/>
+ <category>pymacros</category>
+ <prolog/>
+ <epilog/>
+ <doc/>
+ <autorun>true</autorun>
+ <autorun-early>true</autorun-early>
+ <shortcut/>
+ <show-in-menu>true</show-in-menu>
+ <group-name/>
+ <menu-path>lumerical_menu.interconnect.begin</menu-path>
+ <interpreter>python</interpreter>
+ <dsl-interpreter-name/>
+ <text># Add pins for INTERCONNECT-KLayout integration
+
+# Copyright (c) 2021, Ansys, Inc. All rights reserved.
+
+
+from pya import *
+from SiEPIC.utils import get_technology, get_technology_by_name
+from pya import PCellDeclarationHelper
+from SiEPIC.utils import layout_pgtext, get_technology
+from SiEPIC.utils import select_paths, get_layout_variables
+import random
+
+
+TECHNOLOGY, lv, ly, cell = get_layout_variables()
+    
+TextN = ly.layer(TECHNOLOGY['Text'])
+dbu = ly.dbu
+shapes = cell.shapes
+idx = cell.cell_index()
+
+#user input location
+location = pya.InputDialog.ask_string('Specify port location','Please input port coordiate, seperate with ,','0,0')
+if location != None:
+  a, b = map(int,location.split(','))
+default_name = 'opt_in_%i'%random.randint(1,101)
+port_name = pya.InputDialog.ask_string('Optical Port Name','Please specify your port name,',default_name)
+
+
+t = pya.Trans.from_s('r0 %i,%i' %(a/dbu, b/dbu))
+
+text = Text (port_name, t)
+
+shape = shapes(TextN).insert(text)
+shape.text_size = 5/dbu
+
+</text>
+</klayout-macro>

@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<klayout-macro>
+ <description>Setup Lumerical Installation Path</description>
+ <version/>
+ <category>pymacros</category>
+ <prolog/>
+ <epilog/>
+ <doc/>
+ <autorun>false</autorun>
+ <autorun-early>false</autorun-early>
+ <shortcut/>
+ <show-in-menu>true</show-in-menu>
+ <group-name>2 Circuit Simulation</group-name>
+ <menu-path>lumerical_menu.end</menu-path>
+ <interpreter>python</interpreter>
+ <dsl-interpreter-name/>
+ <text>
+
+# Copyright (c) 2021, Ansys, Inc. All rights reserved.
+
+
+from pya import *
+import random
+from SiEPIC import _globals
+import os
+
+file_path_1 = 'C:\Program Files (x86)\KLayout\lum_path.txt'
+file_path_2 = os.path.join(os.environ['HOME'], 'KLayout\lum_path.txt')
+
+def locate_path():
+    lum_path = pya.FileDialog.ask_existing_dir('Please Specify Lumerical Installation Location (Please select version folder: e.g. v212)','C:\Program Files\Lumerical')
+    if lum_path != None:
+      loc_folder = 'C:\Program Files (x86)\KLayout'  
+      if os.path.exists(loc_folder):  
+        filename = os.path.join(loc_folder, 'lum_path.txt')
+        file = open(filename, 'w')
+        file.write (lum_path)
+        file.close()
+      elif os.path.exists(os.path.join(os.environ['HOME'], 'KLayout')): 
+        loc_folder = os.path.join(os.environ['HOME'],'KLayout')
+        filename = os.path.join(loc_folder, 'lum_path.txt')
+        file = open(filename, 'w')
+        file.write (lum_path)
+        file.close()
+      else:
+        loc_folder = pya.FileDialog.ask_existing_dir('Can not find KLayout installation path. Please specify KLayout installtion folder','')
+        filename = os.path.join(loc_folder, 'lum_path.txt')
+        file = open(filename, 'w')
+        file.write (lum_path)
+        file.close()
+        
+if (os.path.isfile(file_path_1) == True):
+    f = open(file_path_1, "r")
+    path = f.read()
+    confirm = pya.MessageBox.warning(
+            "Lumerical Installation Found","Lumerical already installed at %s. Do you want to specify another location? Note: To specify another location, please select the version folder, e.g. v212." %path,  pya.MessageBox.Yes + pya.MessageBox.No)
+    if confirm == pya.MessageBox.Yes:
+        locate_path()
+elif (os.path.isfile(file_path_2) == True):
+    f = open(file_path_2, "r")
+    path = f.read()
+    confirm = pya.MessageBox.warning(
+            "Lumerical Installation Found","Lumerical already installed at %s. Do you want to specify another location? Note: To specify another location, please select the version folder, e.g. v212." %path,  pya.MessageBox.Yes + pya.MessageBox.No)
+    if confirm == pya.MessageBox.Yes:
+        locate_path()
+else:
+    locate_path()
+
+
+</text>
+</klayout-macro>
