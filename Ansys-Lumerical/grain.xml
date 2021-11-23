@@ -6,7 +6,7 @@
  <hidden>false</hidden>
  <version>212</version>
  <api-version/>
- <title>Python Library</title>
+ <title>Ansys-Lumerical</title>
  <doc>KLayout and Ansys-Lumerical integration.
 # Copyright (c) 2021, Ansys, Inc. All rights reserved. # 
  </doc>
