@@ -5,7 +5,7 @@
  <hidden>false</hidden>
  <version>v1.0</version>
  <title>Ansys Lumerical</title>
- <doc>KLayout and Ansys-Lumerical integration.</doc>
+ <doc>Ansys-Lumerical integration is dependent-package of SiEPIC-Tools, and it offers a layout-first design methodology. This allows the user to directly simulate from the layout, without needing to create the schematic first.</doc>
 # Copyright (c) 2021, Ansys, Inc. All rights reserved. # 
  <doc-url>doc/readme.html</doc-url>
  <license>MIT</license>
