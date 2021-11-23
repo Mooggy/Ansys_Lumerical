@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <klayout-macro>
- <description>Circuit Simulation: Lumerical INTERCONNECT</description>
+ <description>Export circuit to INTERCONNECT</description>
  <version/>
  <category>pymacros</category>
  <prolog/>
@@ -11,16 +11,18 @@
  <shortcut/>
  <show-in-menu>true</show-in-menu>
  <group-name>2 Circuit Simulation</group-name>
- <menu-path>siepic_menu.simulation_circuits.end</menu-path>
+ <menu-path>lumerical_menu.interconnect.end</menu-path>
  <interpreter>python</interpreter>
  <dsl-interpreter-name/>
  <text># Key binding for SiEPIC-Tools function
+# Copyright (c) 2021, Ansys, Inc. All rights reserved.
 # SiEPIC Launch Lumerical Interconnect
 
 import pya
-from SiEPIC import lumerical
+from Lumerical import interconnect_ansys
 
-lumerical.interconnect.circuit_simulation(verbose=True, opt_in_selection_text=[])
+
+interconnect_ansys.circuit_simulation_ansys(verbose=True, opt_in_selection_text=[])
 
 </text>
 </klayout-macro>

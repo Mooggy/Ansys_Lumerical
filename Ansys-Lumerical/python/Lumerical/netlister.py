@@ -1,10 +1,23 @@
+# Copyright (c) 2021, Ansys, Inc. All rights reserved.
+
+
+#This package is adopted from circuit simulation part of SiEPIC Tools
+#This contains most functions needed for generating netlist. Some core function (e,g. find_pins(),find_nets()) are from SiEPIC Tools.
+
 import pya
+
+
+def has_duplicates(value):
+    if len(value) != len(set(value)):
+        return True
+    else:
+        return False
 
 def enum(*sequential, **named):
     enums = dict(zip(sequential, range(len(sequential))), **named)
     return type('Enum', (), enums)
 
-def trim_netlist(nets, components, selected_component, verbose=None):
+def trim_netlist_ansys(nets, components, selected_component, verbose=None):
     selected = selected_component
     #>17        <2
     # nets[0].pins[0].component.idx
@@ -43,11 +56,10 @@ class port_info:
     def __init__(self, detector_net, port_name):
         self.detector_net = detector_net
         self.port_name = port_name
-
-def get_LumericalINTERCONNECT_analyzers(self, components, verbose=None):
+        
+def get_LumericalINTERCONNECT_analyzers_ansys(self, components, verbose=None):
     """
-    Find - LumericalINTERCONNECT_Laser
-         - LumericalINTERCONNECT_Detector
+    Find - LumericalINTERCONNECT_Port
     get their parameters
     determine which OpticalIO they are connected to, and find their nets
     Assume that the detectors and laser are on the topcell (not subcells); don't perform transformations.
@@ -60,9 +72,12 @@ def get_LumericalINTERCONNECT_analyzers(self, components, verbose=None):
 
     topcell = self
 
-    from . import _globals
-    from .utils import select_paths, get_technology
-    from .core import Net
+    #from . import _globals
+    # Define enumeration for pins
+    PIN_TYPES = enum('OPTICALIO', 'OPTICAL', 'ELECTRICAL')
+    PIN_LENGTH = 100  # 0.1 micron
+    from SiEPIC.utils import select_paths, get_technology
+    from SiEPIC.core import Net
     TECHNOLOGY = get_technology()
 
     layout = topcell.layout()
@@ -74,33 +89,39 @@ def get_LumericalINTERCONNECT_analyzers(self, components, verbose=None):
     # Find the laser and detectors in the layout.
     iter1 = topcell.begin_shapes_rec(LayerLumericalN)
     n_IO = 0
-    detectors_info = []
+    ports_info = []
+    port_names = ''
     laser_net = None
-    wavelength_start, wavelength_stop, wavelength_points, orthogonal_identifier, ignoreOpticalIOs = 0, 0, 0, 0, 0
+    #wavelength_start, wavelength_stop, wavelength_points, orthogonal_identifier, ignoreOpticalIOs = 0, 0, 0, 0, 0
     while not(iter1.at_end()):
         subcell = iter1.cell()             # cell (component) to which this shape belongs
         if iter1.shape().is_box():
             box = iter1.shape().box.transformed(iter1.itrans())
-            if iter1.cell().basic_name() == ("Lumerical_INTERCONNECT_Detector"):
+            #changed to search for Lumerical_INTERCONNECT_Port for netlisting
+            if iter1.cell().basic_name() == ("Lumerical_INTERCONNECT_Port"):
                 n_IO += 1
                 # *** todo read parameters from Text labels rather than PCell:
-                detector_number = subcell.pcell_parameters_by_name()["number"]
+                #change to search for Port name
+                port_name = subcell.pcell_parameters_by_name()["name"]
                 if verbose:
-                    print("%s: Detector {%s} %s, box -- %s; %s" %
-                          (n_IO, subcell.basic_name(), detector_number, box.p1, box.p2))
+                    print("%s: Port {%s} %s, box -- %s; %s" %
+                          (n_IO, subcell.basic_name(), port_name, box.p1, box.p2))
+                #opticalIO is extracted from here
+                port_names += ' ' + port_name
                 # find components which have an IO pin inside the Lumerical box:
                 components_IO = [c for c in components if any(
-                    [box.contains(p.center) for p in c.pins if p.type == _globals.PIN_TYPES.OPTICALIO])]
+                    [box.contains(p.center) for p in c.pins if p.type == PIN_TYPES.OPTICALIO])]
                 if len(components_IO) > 1:
-                    raise Exception("Error - more than 1 optical IO connected to the detector.")
+                    raise Exception("Error - more than 1 optical IO connected to the port.")
                 if len(components_IO) == 0:
-                    print("Warning - No optical IO connected to the detector.")
-#          raise Exception("Error - 0 optical IO connected to the detector.")
+                    print("Warning - No optical IO connected to the port.")
+#          raise Exception("Error - 0 optical IO connected to the port.")
                 else:
-                    p = [p for p in components_IO[0].pins if p.type == _globals.PIN_TYPES.OPTICALIO]
-                    p[0].pin_name += '_detector' + str(n_IO)
+                    p = [p for p in components_IO[0].pins if p.type == PIN_TYPES.OPTICALIO]
+                    # change hard coded 'detector' string to pcell property (port.name)
+                    p[0].pin_name = port_name
                     p[0].net = Net(idx=p[0].pin_name, pins=p)
-                    detectors_info.append(Detector_info(p[0].net, detector_number))
+                    ports_info.append(port_info(p[0].net, port_name))
                     if verbose:
                         print(" - pin_name: %s" % (p[0].pin_name))
 
@@ -117,14 +138,14 @@ def get_LumericalINTERCONNECT_analyzers(self, components, verbose=None):
                           (n_IO, subcell.basic_name(), box.p1, box.p2))
                 # find components which have an IO pin inside the Lumerical box:
                 components_IO = [c for c in components if any(
-                    [box.contains(p.center) for p in c.pins if p.type == _globals.PIN_TYPES.OPTICALIO])]
+                    [box.contains(p.center) for p in c.pins if p.type == PIN_TYPES.OPTICALIO])]
                 if len(components_IO) > 1:
                     raise Exception("Error - more than 1 optical IO connected to the laser.")
                 if len(components_IO) == 0:
                     print("Warning - No optical IO connected to the laser.")
 #          raise Exception("Error - 0 optical IO connected to the laser.")
                 else:
-                    p = [p for p in components_IO[0].pins if p.type == _globals.PIN_TYPES.OPTICALIO]
+                    p = [p for p in components_IO[0].pins if p.type == PIN_TYPES.OPTICALIO]
                     p[0].pin_name += '_laser' + str(n_IO)
                     laser_net = p[0].net = Net(idx=p[0].pin_name, pins=p)
                     if verbose:
@@ -133,17 +154,80 @@ def get_LumericalINTERCONNECT_analyzers(self, components, verbose=None):
         iter1.next()
 
     # Sort the detectors:
-    detectors_info2 = sorted(detectors_info, key=lambda d: d.detector_number)
+    ports_info2 = sorted(ports_info, key=lambda d: d.port_name)
 
     # output:
     detector_nets = []
-    for d in detectors_info2:
+    for d in ports_info2:
         detector_nets.append(d.detector_net)
 
-    return laser_net, detector_nets, wavelength_start, wavelength_stop, wavelength_points, orthogonal_identifier, ignoreOpticalIOs
+    return laser_net, detector_nets, port_names
+
+def get_LumericalINTERCONNECT_analyzers_from_text_label_ansys(self, components, verbose=True):
+    from SiEPIC.utils import get_technology, get_technology_by_name, select_instances, find_automated_measurement_labels, get_layout_variables
+    from Lumerical.netlister import identify_nets_ansys
+    from SiEPIC.extend import find_components, find_pins
+    from SiEPIC.core import Pin
+    #TECHNOLOGY, lv, ly, topcell = get_layout_variables()
+    PIN_TYPES = enum('OPTICALIO', 'OPTICAL', 'ELECTRICAL')
+    PIN_LENGTH = 100  # 0.1 micron
+
+    topcell = self
+    layout = topcell.layout()
+    TECHNOLOGY = get_technology()
+
+    Text_1 = topcell.layout().layer(TECHNOLOGY['Text'])  
+
+    # find all text labels starting with opt_in
+    # find labels and generate port_names
+    port_names = ''
+    text_out, opt_in = find_automated_measurement_labels(topcell = topcell)
+    for i in range(len(opt_in)):
+        print("find labels: %s " %(opt_in[i-1]['INTC_IO']))
+        port_names = port_names + " " + (opt_in[i-1]['INTC_IO'])  
+    print(port_names)
+
+    print("-----------------------------------------------------------------------------------------------------------")
+
+    nets, components = topcell.identify_nets_ansys(verbose = True)
+
+    print("----------------------------------------------------------------------------------------------------------")
+
+    pins = topcell.find_pins()
 
 
-def get_LumericalINTERCONNECT_analyzers_from_opt_in(self, components, verbose=None, opt_in_selection_text=[]):
+    #iterate all labels touching this pin.
+    iter2 = topcell.begin_shapes_rec(Text_1)
+    while not(iter2.at_end()):
+        text = iter2.shape().text
+        if text.string.find("INTC_IO") > -1:  
+            print( "\n- -label text: %s" %text.string)
+            port_names = port_names + " " + text.string
+            pin_path = text.trans
+            t = text
+            components_sorted = sorted([c for c in components],key=lambda x: x.trans.disp.to_p().distance(pya.Point(t.x, t.y).to_dtype(1)))
+            # KLayout issue: waveguide location is always 0,0. So sorting distance won't work for waveguides. Ff the closest component is a waveguide, do the following. 
+            # Get a list of all pins in the layout
+            all_pin = []
+            for c in components:
+              all_pin += c.pins
+            print("All pins in the layout: %s" %all_pin)
+            #for p in all_pin, get the closest pin to the text label. Modify the pin properties 
+            pins_wg = sorted([p for p in all_pin],key=lambda x: x.center.distance(pya.Point(t.x, t.y).to_dtype(1))) 
+            print("Closest pin of the waveguide ") 
+            pins_wg[0].display()
+            pins_wg[0].pin_name = text.string
+            pins_wg[0].type = 0
+            print("connected component:")
+            components_sorted[0].display()
+        iter2.next()
+
+
+
+    return port_names, components_sorted
+
+
+def get_LumericalINTERCONNECT_analyzers_from_opt_in_ansys(self, components, verbose=None, opt_in_selection_text=[]):
     """
     From the opt_in label, find the trimmed circuit, and assign a laser and detectors
 
@@ -152,8 +236,11 @@ def get_LumericalINTERCONNECT_analyzers_from_opt_in(self, components, verbose=No
     usage:
     laser_net, detector_nets, wavelength_start, wavelength_stop, wavelength_points, ignoreOpticalIOs, detector_list = get_LumericalINTERCONNECT_analyzers_from_opt_in(topcell, components)
     """
-    from . import _globals
-    from .core import Net
+    #from . import _globals
+    from SiEPIC.core import Net
+
+    PIN_TYPES = enum('OPTICALIO', 'OPTICAL', 'ELECTRICAL')
+    PIN_LENGTH = 100  # 0.1 micron
 
     from SiEPIC.utils import load_DFT
     DFT = load_DFT()
@@ -162,7 +249,7 @@ def get_LumericalINTERCONNECT_analyzers_from_opt_in(self, components, verbose=No
             print(' no DFT rules available.')
         return False, False, False, False, False, False, False, False
 
-    from .scripts import user_select_opt_in
+    from SiEPIC.scripts import user_select_opt_in
     opt_in_selection_text, opt_in_dict = user_select_opt_in(
         verbose=verbose, option_all=False, opt_in_selection_text=opt_in_selection_text)
     if not opt_in_dict:
@@ -172,7 +259,7 @@ def get_LumericalINTERCONNECT_analyzers_from_opt_in(self, components, verbose=No
 
     # find closest GC to opt_in (pick the 1st one... ignore the others)
     t = opt_in_dict[0]['Text']
-    components_sorted = sorted([c for c in components if [p for p in c.pins if p.type == _globals.PIN_TYPES.OPTICALIO]],
+    components_sorted = sorted([c for c in components if [p for p in c.pins if p.type == PIN_TYPES.OPTICALIO]],
                                key=lambda x: x.trans.disp.to_p().distance(pya.Point(t.x, t.y).to_dtype(1)))
     if not(components_sorted):
         warning = pya.QMessageBox()
@@ -193,7 +280,7 @@ def get_LumericalINTERCONNECT_analyzers_from_opt_in(self, components, verbose=No
         pya.QMessageBox_StandardButton(warning.exec_())
         return False, False, False, False, False, False, False, False
     # starting with the opt_in label, identify the sub-circuit, then GCs
-    detector_GCs = [c for c in components if [p for p in c.pins if p.type == _globals.PIN_TYPES.OPTICALIO] if (
+    detector_GCs = [c for c in components if [p for p in c.pins if p.type == PIN_TYPES.OPTICALIO] if (
         c.trans.disp - components_sorted[0].trans.disp).to_p() != pya.DPoint(0, 0)]
     if verbose:
         print("   N=%s, detector GCs: %s" %
@@ -202,7 +289,7 @@ def get_LumericalINTERCONNECT_analyzers_from_opt_in(self, components, verbose=No
                       for c in detector_GCs]
 
     # Laser at the opt_in GC:
-    p = [p for p in components_sorted[0].pins if p.type == _globals.PIN_TYPES.OPTICALIO]
+    p = [p for p in components_sorted[0].pins if p.type == PIN_TYPES.OPTICALIO]
     p[0].pin_name += '_laser'
     laser_net = p[0].net = Net(idx=p[0].pin_name, pins=p)
     if verbose:
@@ -232,69 +319,69 @@ def get_LumericalINTERCONNECT_analyzers_from_opt_in(self, components, verbose=No
     ignoreOpticalIOs = False
 
     # find the GCs in the circuit and connect detectors based on DFT rules
-    detectors_info = []
-    detector_number = 0
+    ports_info = []
+    port_name = 0
     detector_lookuptable = {1: 1, -1: 2, -2: 3}
     detector_list = []
     for d in list(range(int(DFT['design-for-test']['grating-couplers']['detectors-above-laser']) + 0, 0, -1)) + list(range(-1, -int(DFT['design-for-test']['grating-couplers']['detectors-below-laser']) - 1, -1)):
         if pya.DPoint(0, d * float(DFT['design-for-test']['grating-couplers']['gc-pitch']) * 1000) in vect_optin_GCs:
-            detector_number += 1
+            port_name += 1
             detector_list += [detector_lookuptable[d]]
             index = vect_optin_GCs.index(pya.DPoint(
                 0, d * float(DFT['design-for-test']['grating-couplers']['gc-pitch']) * 1000))
             # detector_GCs[index] # component
 
-            p = [p for p in detector_GCs[index].pins if p.type == _globals.PIN_TYPES.OPTICALIO]
-            p[0].pin_name += '_detector' + str(detector_number)
+            p = [p for p in detector_GCs[index].pins if p.type == PIN_TYPES.OPTICALIO]
+            p[0].pin_name += '_detector' + str(port_name)
             p[0].net = Net(idx=p[0].pin_name, pins=p)
-            detectors_info.append(Detector_info(p[0].net, detector_number))
+            ports_info.append(port_info(p[0].net, port_name))
             if verbose:
                 print(" - pin_name: %s" % (p[0].pin_name))
 
     # Sort the detectors:
-    detectors_info2 = sorted(detectors_info, key=lambda d: d.detector_number)
+    ports_info2 = sorted(ports_info, key=lambda d: d.port_name)
 
     # output:
     detector_nets = []
-    for d in detectors_info2:
+    for d in ports_info2:
         detector_nets.append(d.detector_net)
 
     return laser_net, detector_nets, wavelength_start, wavelength_stop, wavelength_points, orthogonal_identifier, ignoreOpticalIOs, detector_list
 
 
-def identify_nets(self, verbose=False):
+def identify_nets_ansys(self, verbose=False):
     # function to identify all the nets in the cell layout
     # use the data in Optical_pin, Optical_waveguide to find overlaps
     # and save results in components
-
+    PIN_TYPES = enum('OPTICALIO', 'OPTICAL', 'ELECTRICAL')
+    PIN_LENGTH = 100  # 0.1 micron
     if verbose:
         print("SiEPIC.extend.identify_nets():")
 
-    from . import _globals
-    from .core import Net
+    #from SiEPIC import _globals
+    from SiEPIC.core import Net
 
     # output: array of Net[]
     nets = []
-
+    from SiEPIC.extend import find_components, find_pins
     # find components and pins in the cell layout
     components = self.find_components()
     pins = self.find_pins()
 
     # Optical Pins:
-    optical_pins = [p for p in pins if p.type == _globals.PIN_TYPES.OPTICAL]
+    optical_pins = [p for p in pins if p.type == PIN_TYPES.OPTICAL]
 
     # Loop through all pairs components (c1, c2); only look at touching components
     for c1 in components:
         for c2 in components[c1.idx + 1: len(components)]:
             if verbose:
-                print(" - Components: [%s-%s], [%s-%s].  Pins: %s, %s"
-                      % (c1.component, c1.idx, c2.component, c2.idx, c1.pins, c2.pins))
+                print(" - Components: [%s-%s], [%s-%s].  Pins: %s, %s" % (c1.component, c1.idx, c2.component, c2.idx, c1.pins, c2.pins))
 
             if c1.polygon.bbox().overlaps(c2.polygon.bbox()) or c1.polygon.bbox().touches(c2.polygon.bbox()):
                 # Loop through all the pins (p1) in c1
                 # - Compare to all other pins, find other overlapping pins (p2) in c2
-                for p1 in [p for p in c1.pins if p.type == _globals.PIN_TYPES.OPTICAL]:
-                    for p2 in [p for p in c2.pins if p.type == _globals.PIN_TYPES.OPTICAL]:
+                for p1 in [p for p in c1.pins if p.type == PIN_TYPES.OPTICAL]:
+                    for p2 in [p for p in c2.pins if p.type == PIN_TYPES.OPTICAL]:
                         if verbose:
                             print(" - Components, pins: [%s-%s, %s, %s, %s], [%s-%s, %s, %s, %s]; difference: %s"
                                   % (c1.component, c1.idx, p1.pin_name, p1.center, p1.rotation, c2.component, c2.idx, p2.pin_name, p2.center, p2.rotation, p1.center - p2.center))
@@ -310,7 +397,7 @@ def identify_nets(self, verbose=False):
                             net_idx = len(nets)
                             # optical net connects two pins; keep track of the pins, Pin[] :
                             nets.append(
-                                Net(idx=net_idx, pins=[p1, p2], _type=_globals.PIN_TYPES.OPTICAL))
+                                Net(idx=net_idx, pins=[p1, p2], _type=PIN_TYPES.OPTICAL))
                             # assign this net number to the pins
                             p1.net = nets[-1]
                             p2.net = nets[-1]
@@ -320,11 +407,13 @@ def identify_nets(self, verbose=False):
                                       % (net_idx, c1.component, c1.idx, p1.pin_name, p1.center, p1.rotation, c2.component, c2.idx, p2.pin_name, p2.center, p2.rotation))
 
     return nets, components
+    
+    
+    
 
 
 
-
-def check_components_models():
+def check_components_models_ansys():
 
     # Check if all the components in the cell have compact models loaded in INTERCONNECT
 
@@ -351,78 +440,60 @@ def check_components_models():
         v = pya.MessageBox.warning(
             "All ok", "All components have models. Ok to simulate the circuit.", pya.MessageBox.Ok)
 
-# find the Pin's Point, whose name matches the input, for the given Cell
-def pinPoint(self, pin_name, verbose=False):
-    pins = self.find_pins()
-    if pins:
-        return [p for p in pins if (p.pin_name==pin_name)][0].center
-    else:
-        pass
 
-# generate spice netlist file
-# example output:
-# X_grating_coupler_1 N$7 N$6 grating_coupler library="custom/genericcml"
-# sch_x=-1.42 sch_y=-0.265 sch_r=0 sch_f=false
-def spice_netlist_export(self, verbose=False, opt_in_selection_text=[]):
+def spice_netlist_export_ansys(self, verbose=True, opt_in_selection_text=[],i=1,loc_x=[], loc_y =[]):
     import SiEPIC
-    from . import _globals
-    from time import strftime
-    from .utils import eng_str
 
-    from .utils import get_technology
+    #from . import _globals
+
+    # get coordinates of the circuits in the layout
+    #circuit_number = number
+    cell_name = self.basic_name()
+    print("Generating netlist for %s" %cell_name)
+    # Define enumeration for pins
+    PIN_TYPES = enum('OPTICALIO', 'OPTICAL', 'ELECTRICAL')
+    PIN_LENGTH = 100  # 0.1 micron
+    from time import strftime
+    from SiEPIC.utils import eng_str
+
+    from SiEPIC.utils import get_technology
     TECHNOLOGY = get_technology()
     if not TECHNOLOGY['technology_name']:
-        v = pya.MessageBox.warning("Errors", "SiEPIC-Tools requires a technology to be chosen.  \n\nThe active technology is displayed on the bottom-left of the KLayout window, next to the T. \n\nChange the technology using KLayout File | Layout Properties, then choose Technology and find the correct one (e.g., EBeam, GSiP).", pya.MessageBox.Ok)
+        v = pya.MessageBox.warning("Errors", "Lumerical-Tools requires a technology to be chosen.  \n\nThe active technology is displayed on the bottom-left of the KLayout window, next to the T. \n\nChange the technology using KLayout File | Layout Properties, then choose Technology and find the correct one (e.g., EBeam, GSiP).", pya.MessageBox.Ok)
         return '', '', 0, []
 
     # get the netlist from the entire layout
-    nets, components = self.identify_nets()
-
+    nets, components = self.identify_nets_ansys(verbose=True)
     if not components:
         v = pya.MessageBox.warning("Errors", "No components found.", pya.MessageBox.Ok)
         return '', '', 0, []
 
     # Get information about the laser and detectors:
     # this updates the Optical IO Net
-    laser_net, detector_nets, wavelength_start, wavelength_stop, wavelength_points, orthogonal_identifier, ignoreOpticalIOs = \
-        get_LumericalINTERCONNECT_analyzers(self, components, verbose=verbose)
+    laser_net, detector_nets, port_names= \
+        get_LumericalINTERCONNECT_analyzers_ansys(self, components, verbose=verbose)
     detector_list = []
 
+    
     # if Laser and Detectors are not defined
-    if not laser_net or not detector_nets:
+    #if not laser_net or not detector_nets: Ansys: detector_nets changed to port_names
+    if not port_names:
         # Use opt_in labels
-        laser_net, detector_nets, wavelength_start, wavelength_stop, wavelength_points, orthogonal_identifier, ignoreOpticalIOs, detector_list = \
-            get_LumericalINTERCONNECT_analyzers_from_opt_in(
-                self, components, verbose=verbose, opt_in_selection_text=opt_in_selection_text)
-
-        if not laser_net or not detector_nets:
-            warning = pya.QMessageBox()
-            warning.setStandardButtons(pya.QMessageBox.Ok)
-            warning.setText(
-                "To run a simulation, you need to define a laser and detector(s), or have an opt_in label.")
-            pya.QMessageBox_StandardButton(warning.exec_())
-            return '', '', 0, []
-
-    # trim the netlist, based on where the laser is connected
-    laser_component = [c for c in components if any(
-        [p for p in c.pins if p.type == _globals.PIN_TYPES.OPTICALIO and 'laser' in p.pin_name])]
-
-    from .scripts import trim_netlist
-    nets, components = trim_netlist(nets, components, laser_component[0])
+        port_names, components = get_LumericalINTERCONNECT_analyzers_from_text_label_ansys(self,components, verbose=verbose)
 
     if not components:
         pya.MessageBox.warning("Error: netlist extraction",
                                "Error: netlist extraction. No components found connected to opt_in label.", pya.MessageBox.Ok)
         return '', '', 0, []
-
+    verbose = True
     if verbose:
         print("* Display list of components:")
         [c.display() for c in components]
         print("* Display list of nets:")
         [n.display() for n in nets]
 
-    text_main = '* Spice output from KLayout SiEPIC-Tools v%s, %s.\n\n' % (
-        SiEPIC.__version__, strftime("%Y-%m-%d %H:%M:%S"))
+    text_main = '* Spice output from KLayout Lumerical Package, %s.\n\n' % (
+        strftime("%Y-%m-%d %H:%M:%S"))
     text_subckt = text_main
 
     # convert KLayout GDS rotation/flip to Lumerical INTERCONNECT
@@ -474,9 +545,10 @@ def spice_netlist_export(self, verbose=False, opt_in_selection_text=[]):
     # create individual sources:
     for c in components:
         for idx,p in enumerate(c.pins):
-            if p.type == _globals.PIN_TYPES.ELECTRICAL:
+            if p.type == PIN_TYPES.ELECTRICAL:
                 if idx > 0:  
                     if p.pin_name == c.pins[idx - 1].pin_name: continue  # Skip pins that have exactly the same name (assume they are internally connected in the component)
+                # just want port name other than component_port name in the netlist
                 NetName = " " + c.component + '_' + str(c.idx) + '_' + p.pin_name
                 electricalIO_pins += NetName
                 DCsources += "N" + \
@@ -490,8 +562,10 @@ def spice_netlist_export(self, verbose=False, opt_in_selection_text=[]):
         electricalIO_pins_subckt = ""
         for c in components:
             for p in c.pins:
-                if p.type == _globals.PIN_TYPES.ELECTRICAL:
-                    NetName = " N$"
+                if p.type == PIN_TYPES.ELECTRICAL:
+                    # to avoid same pin names in multiple circuits generation, all the "N$" are replaced by cell_name
+                    #NetName = " N$"
+                    NetName = " " + cell_name
                     electricalIO_pins_subckt += NetName
                     DCsources = "N1" + NetName + " dcsource amplitude=0 sch_x=-2 sch_y=0\n"
 
@@ -499,25 +573,23 @@ def spice_netlist_export(self, verbose=False, opt_in_selection_text=[]):
     opticalIO_pins = ''
     for c in components:
         for p in c.pins:
-            if p.type == _globals.PIN_TYPES.OPTICALIO:
+            if p.type == PIN_TYPES.OPTICALIO:
+                # only enbale lumerical_ports to be added to the netlist as opticalIOs
                 NetName = ' ' + p.pin_name
                 print(p.pin_name)
                 opticalIO_pins += NetName
 
+
     circuit_name = self.name.replace('.', '')  # remove "."
     if '_' in circuit_name[0]:
         circuit_name = ''.join(circuit_name.split('_', 1))  # remove leading _
-
+    
+    # only use lumerical_ports as optical IO
+    opticalIO_pins_1 = port_names
     # create the top subckt:
-    text_subckt += '.subckt %s%s%s\n' % (circuit_name, electricalIO_pins, opticalIO_pins)
-    # assign MC settings before importing netlist components
-    text_subckt += '.param MC_uniformity_width=0 \n'
-    text_subckt += '.param MC_uniformity_thickness=0 \n'
-    text_subckt += '.param MC_resolution_x=100 \n'
-    text_subckt += '.param MC_resolution_y=100 \n'
-    text_subckt += '.param MC_grid=10e-6 \n'
-    text_subckt += '.param MC_non_uniform=99 \n'
+    text_subckt += '.subckt %s%s%s\n' % (circuit_name, electricalIO_pins, opticalIO_pins_1)
 
+    all_nets = ''
     for c in components:
         # Check pins to see if explicitly ordered numerically - requires first character in pin name to be a number (Stefan Preble, RIT)
         explicit_ordering = False
@@ -534,24 +606,61 @@ def spice_netlist_export(self, verbose=False, opt_in_selection_text=[]):
             for idx, p in enumerate(c.pins):
                 if idx > 0:  
                     if p.pin_name == c.pins[idx - 1].pin_name: continue  # Skip pins that have exactly the same name (assume they are internally connected in the component)
-                if p.type == _globals.PIN_TYPES.ELECTRICAL:
+                if p.type == PIN_TYPES.ELECTRICAL:
                     nets_str += " " + c.component + '_' + str(c.idx) + '_' + p.pin_name
-                if p.type == _globals.PIN_TYPES.OPTICALIO:
+                if p.type == PIN_TYPES.OPTICALIO:
                     nets_str += " " + str(p.net.idx)    
-                if p.type == _globals.PIN_TYPES.OPTICAL:
-                    nets_str += " N$" + str(p.net.idx)
+                if p.type == PIN_TYPES.OPTICAL:
+                    nets_str += " " + " N$" + str(p.net.idx)
+                else:
+                    nets_str += " " + " N$" + str(p.net.idx)
         else:
+            
+            # do one loop instead of 3 loops for ordering nets
+            for p in c.pins:
+                if p.type == PIN_TYPES.ELECTRICAL:
+                    nets_str += " " + c.component + '_' + str(c.idx) + '_' + p.pin_name   
+                if p.type == PIN_TYPES.OPTICALIO:
+                    # To change nets_str for text label netlisting
+                    nets_str += " " + p.pin_name                    
+                if p.type == PIN_TYPES.OPTICAL:
+                    import random
+                    
+                    if p.net.idx or p.net.idx == 0:
+                        nets_str += " " + cell_name + str(p.net.idx)
+                    else: 
+                        import random
+                        num = random.randint(1,99)
+                        str_1 = " " + " N$$" + str(num)
+                        # check if pin net has repeataions 
+                        while all_nets.__contains__(str_1):
+                            num = random.randint(1,99)
+                            str_1 = " " + " N$$" + str(num)
+                            print("Unique pin: %s" %str_1)
+                            print("nets_str: %s" %all_nets)
+                        nets_str += " " + " N$$" + str(num)
+                        all_nets += " " + " N$$" + str(num) 
+                        #nets_str += " " + " N$" + str(random.randint(1,99))
+              
+                    
+            '''
             # optical nets: must be ordered electrical, optical IO, then optical
             for p in c.pins:
-                if p.type == _globals.PIN_TYPES.ELECTRICAL:
+                if p.type == PIN_TYPES.ELECTRICAL:
                     nets_str += " " + c.component + '_' + str(c.idx) + '_' + p.pin_name
+            
             for p in c.pins:
-                if p.type == _globals.PIN_TYPES.OPTICALIO:
-                    nets_str += " " + str(p.net.idx)
+                if p.type == PIN_TYPES.OPTICALIO:
+                    #nets_str += " " + str(p.net.idx)
+                    #Ansys: to change nets_str for text label netlisting
+                    nets_str += " " + p.pin_name
             for p in c.pins:
-                if p.type == _globals.PIN_TYPES.OPTICAL:
-                    nets_str += " N$" + str(p.net.idx)
-
+                if p.type == PIN_TYPES.OPTICAL:
+                    #nets_str += " N$" + str(p.net.idx)
+                    nets_str += " " + cell_name + str(p.net.idx)
+            else:
+                nets_str += " " + cell_name + str(p.net.idx)
+            '''
         trans = KLayoutInterconnectRotFlip[(c.trans.angle, c.trans.is_mirror())]
 
         flip = ' sch_f=true' if trans[1] else ''
@@ -561,8 +670,10 @@ def spice_netlist_export(self, verbose=False, opt_in_selection_text=[]):
             rotate = ''
 
         # Check to see if this component is an Optical IO type.
-        pinIOtype = any([p for p in c.pins if p.type == _globals.PIN_TYPES.OPTICALIO])
+        pinIOtype = any([p for p in c.pins if p.type == PIN_TYPES.OPTICALIO])
 
+        #Ansys: remove igonreOpticalIOs
+        ignoreOpticalIOs = False
         if ignoreOpticalIOs and pinIOtype:
             # Replace the Grating Coupler or Edge Coupler with a 0-length waveguide.
             component1 = "ebeam_wg_strip_1550"
@@ -570,7 +681,7 @@ def spice_netlist_export(self, verbose=False, opt_in_selection_text=[]):
         else:
             component1 = c.component
             params1 = c.params
-            
+        
         # Remove "$N" from component's name for cell instance arrays of the same name     
         if "$" in component1:
             component1 = component1[:component1.find("$")]
@@ -598,10 +709,15 @@ def spice_netlist_export(self, verbose=False, opt_in_selection_text=[]):
         for i in range(0, len(detector_nets)):
             text_main += '  + input(%s)=%s,%s\n' % (i + 1, circuit_name, detector_nets[i].idx)
         text_main += '  + output=%s,%s\n' % (circuit_name, laser_net.idx)
+    
 
     # main circuit
-    text_subckt += '%s %s %s %s sch_x=-1 sch_y=-1 ' % (
-        circuit_name, electricalIO_pins_subckt, opticalIO_pins, circuit_name)
+    if loc_x:
+        text_subckt += '%s %s %s %s sch_x=%f sch_y=%f ' %\
+            (circuit_name, electricalIO_pins_subckt, opticalIO_pins_1, circuit_name, float(loc_x[i-1])/200 , float(loc_y[i-1])/200)
+    else:
+        text_subckt += '%s %s %s %s sch_x=-1 sch_y=-1 ' %\
+            (circuit_name, electricalIO_pins_subckt, opticalIO_pins_1, circuit_name)
     if len(DCsources) > 0:
         text_subckt += 'sch_r=270\n\n'
     else:
@@ -609,19 +725,161 @@ def spice_netlist_export(self, verbose=False, opt_in_selection_text=[]):
 
     text_main += DCsources
 
-    return text_subckt, text_main, len(detector_nets), detector_list
+    return text_subckt, text_main, len(detector_nets), detector_list, opticalIO_pins_1
 
 
-#################################################################################
 
-pya.Cell.print_parameter_values = print_parameter_values
-pya.Cell.find_pin = find_pin
-pya.Cell.find_pins = find_pins
-pya.Cell.find_pins_component = find_pins_component
-pya.Cell.find_components = find_components
-pya.Cell.identify_nets = identify_nets
-pya.Cell.get_LumericalINTERCONNECT_analyzers = get_LumericalINTERCONNECT_analyzers
-pya.Cell.get_LumericalINTERCONNECT_analyzers_from_opt_in = get_LumericalINTERCONNECT_analyzers_from_opt_in
-pya.Cell.spice_netlist_export = spice_netlist_export
-pya.Cell.pinPoint = pinPoint
+def selected_circuits_netlists_ansys(verbose = False, simulate = False):
 
+
+    from SiEPIC.utils import get_technology, get_technology_by_name, select_instances
+    from SiEPIC.extend import find_components, find_pins
+    from SiEPIC.utils import get_layout_variables
+    import os
+    import random
+
+    #TECHNOLOGY, lv, ly, cell = get_layout_variables()
+  
+    print("=======================================================")
+    print("Netlisting for multiple circuits")
+  
+    verbose = True
+    cells = []
+  
+    # Get the index of the selected cells 
+    selection = select_instances()
+    print("num of selected inst: %s" %len(selection))
+    #selection = lv.object_selection
+    for i in range(len(selection)):
+        index = selection[i].cell_index()
+        cell_name = selection[i].layout().cell(index).basic_name()
+        print("cell number %s: [cell_index number: %s; cell name: %s]" %((i+1),index, cell_name))
+        cells.append(selection[i].layout().cell(index))
+    
+
+    # get names of the selected cells
+    selected_names = []
+    for i in range(len(selection)):
+        index = selection[i].cell_index()
+        cell = selection[i].layout().cell(index)
+        cell_name = cell.basic_name()
+        print("index: %s, cell name: %s"%(index, cell_name))
+        selected_names.append(cell_name)
+
+    print("selected names: %s" %selected_names)
+
+
+
+    # define a list containing all optical pins to check duplicates
+    all_optical_pins = []
+    TECHNOLOGY, lv, ly, cell = get_layout_variables()
+    top = ly.top_cell()
+    loc_x = []
+    loc_y = []
+    iter = pya.RecursiveInstanceIterator.new(ly,top)
+    while not(iter.at_end()):
+        if iter.inst_cell().basic_name() in selected_names:
+            r,t,loc = iter.inst_dtrans().to_s().split()
+            x,y = loc.split(",")
+            loc_x.append(x)
+            loc_y.append(y)
+        iter.next()
+
+    # export netlist only
+    if not simulate:
+        # get saving dir and check name conflic
+        file_dir = pya.FileDialog.ask_save_file_name('Please specify the save diretory for your netlist','default','.spi')
+        if file_dir != None:
+            dirname = os.path.dirname(file_dir)
+            base_name = os.path.basename(file_dir)
+            filename_subckt_1 = os.path.join(dirname,  '%s.spi' % base_name)
+            if os.path.isfile(filename_subckt_1):
+                raise Exception('There already exists a file with this name. Please choose a different file name!')
+            file = open(filename_subckt_1, 'w')
+
+
+            # Get netlists for all selected circuits and write into user defined spi file
+            for i in range(len(selection)):
+                text_Spice, text_Spice_main, num_detectors, detector_list, optical_pins = cells[i].spice_netlist_export_ansys(verbose=False, opt_in_selection_text=[], i=i, loc_x = loc_x, loc_y = loc_y)
+                if not text_Spice:
+                    raise Exception("No netlist available. Cannot run simulation.")
+                all_optical_pins.extend(optical_pins.split())
+                if verbose:   
+                    print(text_Spice)
+                    print('-------------------------')
+                file.write(text_Spice)
+            file.close()
+            print(all_optical_pins)
+            if has_duplicates(all_optical_pins):
+                raise Exception("Optical ports with the same names are found. Please rename your optical ports so each optical port has an unique name!")
+
+    # import netlist to INTC
+    if simulate:
+        file_path_1 = r'C:\Program Files (x86)\KLayout\working_dir.txt'
+        file_path_2 = os.path.join(os.environ['HOME'], 'KLayout\working_dir.txt')
+        if(os.path.isfile(file_path_1)==True):
+            f = open(file_path_1, "r")
+            path = f.read()
+        elif(os.path.isfile(file_path_2)==True):
+            f = open(file_path_2, "r")
+            path = f.read()
+        else:
+            raise Exception("Warning: The program could not find your project directory. Please specify your project directory manually (Ansys Lumerical > Setup Project Directory).")
+
+        filename_subckt = os.path.join(path, '%s_circuits_selected_%i.spi' %(len(selection), random.randint(1,101)))
+        file = open(filename_subckt, 'w')
+
+        
+        for i in range(len(selection)):
+            text_Spice, text_Spice_main, num_detectors, detector_list, optical_pins = cells[i].spice_netlist_export_ansys(verbose=False, opt_in_selection_text=[], i=i, loc_x = loc_x, loc_y = loc_y)
+            if not text_Spice:
+                raise Exception("No netlist available. Cannot run simulation.")
+            all_optical_pins.extend(optical_pins.split())
+            if verbose:   
+                print(text_Spice)
+                print('-------------------------')
+            file.write (text_Spice)
+        file.close()
+
+        if has_duplicates(all_optical_pins):
+            raise Exception("Optical ports with the same names are found. Please rename your optical ports so each optical port has an unique name!")
+            return
+
+        import os
+        import subprocess
+        from Lumerical.interconnect_ansys import INTC_commandline
+        netlist_path = r'%s' % filename_subckt
+        INTC_commandline(netlist_path)
+
+    '''
+    cell_1.spice_netlist_export_ansys(verbose=True, opt_in_selection_text=[])
+    text_Spice, text_Spice_main, num_detectors, detector_list = cell_1.spice_netlist_export_ansys(verbose=True, opt_in_selection_text=[])
+    
+    if not text_Spice:
+        raise Exception("No netlist available. Cannot run simulation.")
+    if verbose:   
+        print(text_Spice)
+    
+    circuit_name = cell_1.name.replace('.','') # remove "."
+    if '_' in circuit_name[0]:
+        circuit_name = ''.join(circuit_name.split('_', 1))  # remove leading _
+    
+    if file_dir != None:
+        dirname = os.path.dirname(file_dir)
+        base_name = os.path.basename(file_dir)
+        filename_subckt_1 = os.path.join(dirname,  '%s.spi' % base_name)
+        if os.path.isfile(filename_subckt_1):
+        raise Exception('There already exists a file with this name. Please choose a different file name!')
+        else:
+        file = open(filename_subckt_1, 'w')
+        file.write (text_Spice)
+        file.close()
+    '''
+
+
+
+pya.Cell.identify_nets_ansys = identify_nets_ansys
+pya.Cell.get_LumericalINTERCONNECT_analyzers_ansys = get_LumericalINTERCONNECT_analyzers_ansys
+pya.Cell.get_LumericalINTERCONNECT_analyzers_from_opt_in_ansys = get_LumericalINTERCONNECT_analyzers_from_opt_in_ansys
+pya.Cell.spice_netlist_export_ansys = spice_netlist_export_ansys
+pya.Cell.get_LumericalINTERCONNECT_analyzers_from_text_label_ansys = get_LumericalINTERCONNECT_analyzers_from_text_label_ansys

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<klayout-macro>
+ <description>Lumerical initialization</description>
+ <version/>
+ <category>pymacros</category>
+ <prolog/>
+ <epilog/>
+ <doc/>
+ <autorun>true</autorun>
+ <autorun-early>false</autorun-early>
+ <shortcut/>
+ <show-in-menu>true</show-in-menu>
+ <group-name/>
+ <menu-path>lumerical_menu.beginning</menu-path>
+ <interpreter>python</interpreter>
+ <dsl-interpreter-name/>
+ <text>'''#################################################################################
+
+# Copyright (c) 2021, Ansys, Inc. All rights reserved.
+
+Lumerical installation and initalization
+
+'''#################################################################################
+
+import pya
+from Lumerical import lumerical_setup
+
+lumerical_setup.register_lumerical_menu()
+</text>
+</klayout-macro>

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <klayout-macro>
- <description>Export Netlist</description>
+ <description/>
  <version/>
  <category>pymacros</category>
  <prolog/>
@@ -9,20 +9,17 @@
  <autorun>false</autorun>
  <autorun-early>false</autorun-early>
  <shortcut/>
- <show-in-menu>true</show-in-menu>
- <group-name>2 Circuit Simulation</group-name>
- <menu-path>lumerical_menu.interconnect.end</menu-path>
+ <show-in-menu>false</show-in-menu>
+ <group-name/>
+ <menu-path/>
  <interpreter>python</interpreter>
  <dsl-interpreter-name/>
  <text>
 # Copyright (c) 2021, Ansys, Inc. All rights reserved.
-
-# SiEPIC Launch Lumerical Interconnect
-
 import pya
-from Lumerical import interconnect_ansys
+from Lumerical import lumerical_setup
 
+# Enter your Python code here ..
 
-interconnect_ansys.circuit_simulation_ansys(verbose=True, simulate=False)
-</text>
+Lumerical.setup.register_Lumerical_Menu()</text>
 </klayout-macro>
