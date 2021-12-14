@@ -24,30 +24,23 @@ import random
 from SiEPIC import _globals
 import os
 
-file_path_1 = 'C:\Program Files (x86)\KLayout\lum_path.txt'
-file_path_2 = os.path.join(os.environ['HOME'], 'KLayout\lum_path.txt')
+file_path_1 = os.path.join(pya.Application.instance().inst_path(),'lum_path.txt')
+file_path_2 = os.path.join(pya.Application.instance().klayout_path()[0], 'lum_path.txt')
 
 def locate_path():
     lum_path = pya.FileDialog.ask_existing_dir('Please Specify Lumerical Installation Location (Please select version folder: e.g. v212)','C:\Program Files\Lumerical')
     if lum_path != None:
-      loc_folder = 'C:\Program Files (x86)\KLayout'  
+      loc_folder = pya.Application.instance().inst_path() 
       if os.path.exists(loc_folder):  
-        filename = os.path.join(loc_folder, 'lum_path.txt')
-        file = open(filename, 'w')
+        file = open(file_path_1, 'w')
         file.write (lum_path)
         file.close()
-      elif os.path.exists(os.path.join(os.environ['HOME'], 'KLayout')): 
-        loc_folder = os.path.join(os.environ['HOME'],'KLayout')
-        filename = os.path.join(loc_folder, 'lum_path.txt')
-        file = open(filename, 'w')
+      else: 
+        loc_folder = pya.Application.instance().klayout_path()[0]
+        file = open(file_path_2, 'w')
         file.write (lum_path)
         file.close()
-      else:
-        loc_folder = pya.FileDialog.ask_existing_dir('Can not find KLayout installation path. Please specify KLayout installtion folder','')
-        filename = os.path.join(loc_folder, 'lum_path.txt')
-        file = open(filename, 'w')
-        file.write (lum_path)
-        file.close()
+
         
 if (os.path.isfile(file_path_1) == True):
     f = open(file_path_1, "r")

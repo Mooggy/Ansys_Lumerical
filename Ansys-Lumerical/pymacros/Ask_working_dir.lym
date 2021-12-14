@@ -24,30 +24,23 @@ import random
 from SiEPIC import _globals
 import os
 
-file_path_1 = 'C:\Program Files (x86)\KLayout\working_dir.txt'
-file_path_2 = os.path.join(os.environ['HOME'], 'KLayout\working_dir.txt')
+file_path_1 = os.path.join(pya.Application.instance().inst_path(),'working_dir.txt')
+file_path_2 = os.path.join(pya.Application.instance().klayout_path()[0], 'working_dir.txt')
 
 def locate_dir():
     working_dir = pya.FileDialog.ask_existing_dir('Please Specify Your Wokring Directory',os.environ['HOME'])
     if working_dir != None:
-      loc_folder = 'C:\Program Files (x86)\KLayout'  
+      loc_folder = pya.Application.instance().inst_path()
       if os.path.exists(loc_folder):  
-        filename = os.path.join(loc_folder, 'working_dir.txt')
-        file = open(filename, 'w')
+        file = open(file_path_1, 'w')
         file.write (working_dir)
         file.close()
-      elif os.path.exists(os.path.join(os.environ['HOME'], 'KLayout')): 
-        loc_folder = os.path.join(os.environ['HOME'],'KLayout')
-        filename = os.path.join(loc_folder, 'working_dir.txt')
-        file = open(filename, 'w')
+      else: 
+        loc_folder = pya.Application.instance().klayout_path()[0]
+        file = open(file_path_2, 'w')
         file.write (working_dir)
         file.close()
-      else:
-        loc_folder = pya.FileDialog.ask_existing_dir('Can not find KLayout installation path. Please specify KLayout installtion folder','')
-        filename = os.path.join(loc_folder, 'working_dir.txt')
-        file = open(filename, 'w')
-        file.write (working_dir)
-        file.close()
+
         
 if (os.path.isfile(file_path_1) == True):
     f = open(file_path_1, "r")

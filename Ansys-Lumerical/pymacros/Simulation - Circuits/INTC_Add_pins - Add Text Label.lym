@@ -38,16 +38,20 @@ idx = cell.cell_index()
 location = pya.InputDialog.ask_string('Specify port location','Please input port coordiate, seperate with ,','0,0')
 if location != None:
   a, b = map(int,location.split(','))
-default_name = 'opt_in_%i'%random.randint(1,101)
-port_name = pya.InputDialog.ask_string('Optical Port Name','Please specify your port name,',default_name)
+  default_name = 'opt_in_%i'%random.randint(1,101)
+  port_name = pya.InputDialog.ask_string('Optical Port Name','Please specify your port name,',default_name)
+  if port_name != None:
+    t = pya.Trans.from_s('r0 %i,%i' %(a/dbu, b/dbu))
+    text = Text (port_name, t)
+    shape = shapes(TextN).insert(text)
+    shape.text_size = 5/dbu
+else:
+  pass
 
 
-t = pya.Trans.from_s('r0 %i,%i' %(a/dbu, b/dbu))
 
-text = Text (port_name, t)
 
-shape = shapes(TextN).insert(text)
-shape.text_size = 5/dbu
+
 
 </text>
 </klayout-macro>

@@ -178,29 +178,20 @@ def get_LumericalINTERCONNECT_analyzers_from_text_label_ansys(self, components, 
 
     Text_1 = topcell.layout().layer(TECHNOLOGY['Text'])  
 
-    # find all text labels starting with opt_in
+    # find all text labels starting with INTC_IO and opt_in
     # find labels and generate port_names
     port_names = ''
-    text_out, opt_in = find_automated_measurement_labels(topcell = topcell)
-    for i in range(len(opt_in)):
-        print("find labels: %s " %(opt_in[i-1]['INTC_IO']))
-        port_names = port_names + " " + (opt_in[i-1]['INTC_IO'])  
-    print(port_names)
-
-    print("-----------------------------------------------------------------------------------------------------------")
-
     nets, components = topcell.identify_nets_ansys(verbose = True)
-
-    print("----------------------------------------------------------------------------------------------------------")
 
     pins = topcell.find_pins()
 
-
+    components_sorted = []
     #iterate all labels touching this pin.
     iter2 = topcell.begin_shapes_rec(Text_1)
     while not(iter2.at_end()):
         text = iter2.shape().text
-        if text.string.find("INTC_IO") > -1:  
+        #if text.string.find("INTC_IO") > -1:
+        if text.string.find("INTC_IO") > -1 or text.string.find("opt_in") > -1:  
             print( "\n- -label text: %s" %text.string)
             port_names = port_names + " " + text.string
             pin_path = text.trans
@@ -221,7 +212,7 @@ def get_LumericalINTERCONNECT_analyzers_from_text_label_ansys(self, components, 
             print("connected component:")
             components_sorted[0].display()
         iter2.next()
-
+    print(port_names)
 
 
     return port_names, components_sorted
@@ -483,7 +474,7 @@ def spice_netlist_export_ansys(self, verbose=True, opt_in_selection_text=[],i=1,
 
     if not components:
         pya.MessageBox.warning("Error: netlist extraction",
-                               "Error: netlist extraction. No components found connected to opt_in label.", pya.MessageBox.Ok)
+                               "Error: netlist extraction. No components found. Please make sure to select the correct Technology.", pya.MessageBox.Ok)
         return '', '', 0, []
     verbose = True
     if verbose:
@@ -815,8 +806,8 @@ def selected_circuits_netlists_ansys(verbose = False, simulate = False):
 
     # import netlist to INTC
     if simulate:
-        file_path_1 = r'C:\Program Files (x86)\KLayout\working_dir.txt'
-        file_path_2 = os.path.join(os.environ['HOME'], 'KLayout\working_dir.txt')
+        file_path_1 = os.path.join(pya.Application.instance().inst_path(),'working_dir.txt')
+        file_path_2 = os.path.join(pya.Application.instance().klayout_path()[0], 'working_dir.txt')
         if(os.path.isfile(file_path_1)==True):
             f = open(file_path_1, "r")
             path = f.read()
@@ -846,7 +837,6 @@ def selected_circuits_netlists_ansys(verbose = False, simulate = False):
             return
 
         import os
-        import subprocess
         from Lumerical.interconnect_ansys import INTC_commandline
         netlist_path = r'%s' % filename_subckt
         INTC_commandline(netlist_path)
